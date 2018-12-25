@@ -20,7 +20,7 @@
  *
  * @author <a href="http://vanessa.b3log.org">Liyuan Li</a>
  * @author <a href="http://88250.b3log.org">Liang Ding</a>
- * @version 1.2.1.11, Oct 17, 2018
+ * @version 1.2.1.13, Dec 24, 2018
  */
 
 /* preference 相关操作 */
@@ -46,13 +46,13 @@ admin.preference = {
 
                 var preference = result.preference;
 
-                $("#metaKeywords").val(preference.metaKeywords),
-                        $("#metaDescription").val(preference.metaDescription),
-                        $("#blogTitle").val(preference.blogTitle),
-                        $("#blogSubtitle").val(preference.blogSubtitle),
-                        $("#mostCommentArticleDisplayCount").val(preference.mostCommentArticleDisplayCount);
-                $("#mostViewArticleDisplayCount").val(preference.mostViewArticleDisplayCount),
-                        $("#recentCommentDisplayCount").val(preference.recentCommentDisplayCount);
+                $("#metaKeywords").val(preference.metaKeywords);
+                $("#metaDescription").val(preference.metaDescription);
+                $("#blogTitle").val(preference.blogTitle);
+                $("#blogSubtitle").val(preference.blogSubtitle);
+                $("#mostCommentArticleDisplayCount").val(preference.mostCommentArticleDisplayCount);
+                $("#mostViewArticleDisplayCount").val(preference.mostViewArticleDisplayCount);
+                $("#recentCommentDisplayCount").val(preference.recentCommentDisplayCount);
                 $("#mostUsedTagDisplayCount").val(preference.mostUsedTagDisplayCount);
                 $("#articleListDisplayCount").val(preference.articleListDisplayCount);
                 $("#articleListPaginationWindowSize").val(preference.articleListPaginationWindowSize);
@@ -65,6 +65,7 @@ admin.preference = {
                 $("#relevantArticlesDisplayCount").val(preference.relevantArticlesDisplayCount);
                 $("#randomArticlesDisplayCount").val(preference.randomArticlesDisplayCount);
                 $("#keyOfSolo").val(preference.keyOfSolo);
+                $("#customVars").val(preference.customVars);
 
                 "true" === preference.enableArticleUpdateHint ? $("#enableArticleUpdateHint").attr("checked", "checked") : $("#enableArticleUpdateHint").removeAttr("checked");
                 "true" === preference.allowVisitDraftViaPermalink ? $("#allowVisitDraftViaPermalink").attr("checked", "checked") : $("allowVisitDraftViaPermalink").removeAttr("checked");
@@ -81,13 +82,13 @@ admin.preference = {
                 for (var i = 0; i < skins.length; i++) {
                     var selectedClass = "";
                     if (skins[i].skinName === preference.skinName
-                            && skins[i].skinDirName === preference.skinDirName) {
+                        && skins[i].skinDirName === preference.skinDirName) {
                         selectedClass += " selected";
                     }
                     skinsHTML += "<div title='" + skins[i].skinDirName
-                            + "' class='left skinItem" + selectedClass + "'><img class='skinPreview' src='"
-                            + latkeConfig.staticServePath + "/skins/" + skins[i].skinDirName
-                            + "/preview.png'/><div>" + skins[i].skinName + "</div></div>";
+                        + "' class='left skinItem" + selectedClass + "'><img class='skinPreview' src='"
+                        + latkeConfig.staticServePath + "/skins/" + skins[i].skinDirName
+                        + "/preview.png'/><div>" + skins[i].skinName + "</div></div>";
                 }
                 $("#skinMain").append(skinsHTML + "<div class='clear'></div>");
 
@@ -113,20 +114,21 @@ admin.preference = {
         });
 
         $.ajax({
-            url: latkeConfig.servePath + "/console/preference/qiniu",
+            url: latkeConfig.servePath + "/console/preference/oss",
             type: "GET",
             cache: false,
-            success: function (result, textStatus) {
-                $("#tipMsg").text(result.msg);
+            success: function (result) {
                 if (!result.sc) {
+                    $("#tipMsg").text(result.msg);
                     $("#loadMsg").text("");
                     return;
                 }
-
-                $("#qiniuAccessKey").val(result.qiniu.qiniuAccessKey);
-                $("#qiniuSecretKey").val(result.qiniu.qiniuSecretKey);
-                $("#qiniuDomain").val(result.qiniu.qiniuDomain);
-                $("#qiniuBucket").val(result.qiniu.qiniuBucket);
+                //设置服务商信息
+                $('input[name=ossServer][value=' + result.oss.ossServer + ']')[0].checked = true
+                $("#ossAccessKey").val(result.oss.ossAccessKey);
+                $("#ossSecretKey").val(result.oss.ossSecretKey);
+                $("#ossDomain").val(result.oss.ossDomain);
+                $("#ossBucket").val(result.oss.ossBucket);
             }
         });
     },
@@ -184,18 +186,18 @@ admin.preference = {
         $("#tipMsg").text("");
         $("#loadMsg").text(Label.loadingLabel);
         var signs = [{
-                "oId": 0,
-                "signHTML": ""
-            }, {
-                "oId": 1,
-                "signHTML": $("#preferenceSign1").val()
-            }, {
-                "oId": 2,
-                "signHTML": $("#preferenceSign2").val()
-            }, {
-                "oId": 3,
-                "signHTML": $("#preferenceSign3").val()
-            }];
+            "oId": 0,
+            "signHTML": ""
+        }, {
+            "oId": 1,
+            "signHTML": $("#preferenceSign1").val()
+        }, {
+            "oId": 2,
+            "signHTML": $("#preferenceSign2").val()
+        }, {
+            "oId": 3,
+            "signHTML": $("#preferenceSign3").val()
+        }];
 
         var requestJSONObject = {
             "preference": {
@@ -227,7 +229,8 @@ admin.preference = {
                 "feedOutputMode": $("#feedOutputMode").val(),
                 "feedOutputCnt": $("#feedOutputCnt").val(),
                 "commentable": $("#commentable").prop("checked"),
-                "allowRegister": $("#allowRegister").prop("checked")
+                "allowRegister": $("#allowRegister").prop("checked"),
+                "customVars": $("#customVars").val()
             }
         };
 
@@ -244,7 +247,7 @@ admin.preference = {
                 }
 
                 if ($("#localeString").val() !== admin.preference.locale ||
-                        $("#editorType").val() !== admin.preference.editorType) {
+                    $("#editorType").val() !== admin.preference.editorType) {
                     window.location.reload();
                 }
 
@@ -252,7 +255,7 @@ admin.preference = {
                 for (var i = 1; i < signs.length; i++) {
                     if ($("#articleSign" + signs[i].oId).length === 1) {
                         $("#articleSign" + signs[i].oId).tip("option", "content",
-                                signs[i].signHTML === "" ? Label.signIsNullLabel : signs[i].signHTML.replace(/\n/g, "").replace(/<script.*<\/script>/ig, ""));
+                            signs[i].signHTML === "" ? Label.signIsNullLabel : signs[i].signHTML.replace(/\n/g, "").replace(/<script.*<\/script>/ig, ""));
                     }
                 }
 
@@ -261,31 +264,53 @@ admin.preference = {
         });
     },
     /*
-     * @description 更新 Qiniu 参数
+     * @description 更新 Oss 参数
      */
-    updateQiniu: function () {
+    updateOss: function () {
         $("#tipMsg").text("");
         $("#loadMsg").text(Label.loadingLabel);
 
         var requestJSONObject = {
-            "qiniuAccessKey": $("#qiniuAccessKey").val(),
-            "qiniuSecretKey": $("#qiniuSecretKey").val(),
-            "qiniuDomain": $("#qiniuDomain").val(),
-            "qiniuBucket": $("#qiniuBucket").val()
+            "ossServer": $('input[name=ossServer]:checked').val(),
+            "ossAccessKey": $("#ossAccessKey").val(),
+            "ossSecretKey": $("#ossSecretKey").val(),
+            "ossDomain": $("#ossDomain").val(),
+            "ossBucket": $("#ossBucket").val()
         };
 
         $.ajax({
-            url: latkeConfig.servePath + "/console/preference/qiniu",
+            url: latkeConfig.servePath + "/console/preference/oss",
             type: "PUT",
             cache: false,
             data: JSON.stringify(requestJSONObject),
-            success: function (result, textStatus) {
+            success: function (result) {
                 $("#tipMsg").html(result.msg);
                 $("#loadMsg").text("");
             }
         });
+    },
+
+    // 服务商radio change事件
+    ossServerChange: function () {
+        var ossServer = $('input[name=ossServer]:checked').val()
+        $.ajax({
+            url: latkeConfig.servePath + "/console/preference/oss?ossServer=" + ossServer,
+            type: "GET",
+            cache: false,
+            success: function (result) {
+                if (!result.sc) {
+                    $("#loadMsg").text("");
+                    $("#tipMsg").text(result.msg);
+                    return;
+                }
+                $("#ossAccessKey").val(result.oss.ossAccessKey);
+                $("#ossSecretKey").val(result.oss.ossSecretKey);
+                $("#ossDomain").val(result.oss.ossDomain);
+                $("#ossBucket").val(result.oss.ossBucket);
+            }
+        });
     }
-};
+}
 
 /*
  * 注册到 admin 进行管理 

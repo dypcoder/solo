@@ -17,7 +17,6 @@
  */
 package org.b3log.solo.processor;
 
-import jodd.http.HttpRequest;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.lang.StringUtils;
 import org.b3log.latke.Keys;
@@ -25,28 +24,25 @@ import org.b3log.latke.Latkes;
 import org.b3log.latke.ioc.Inject;
 import org.b3log.latke.model.Pagination;
 import org.b3log.latke.model.User;
-import org.b3log.latke.servlet.HTTPRequestContext;
-import org.b3log.latke.servlet.HTTPRequestMethod;
+import org.b3log.latke.servlet.HttpMethod;
+import org.b3log.latke.servlet.RequestContext;
 import org.b3log.latke.servlet.annotation.RequestProcessing;
 import org.b3log.latke.servlet.annotation.RequestProcessor;
-import org.b3log.latke.servlet.renderer.JSONRenderer;
-import org.b3log.latke.util.Strings;
+import org.b3log.latke.servlet.renderer.JsonRenderer;
 import org.b3log.solo.SoloServletListener;
 import org.b3log.solo.model.Article;
 import org.b3log.solo.model.Option;
 import org.b3log.solo.service.*;
-import org.b3log.solo.util.Solos;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 /**
  * Blog processor.
  *
  * @author <a href="http://88250.b3log.org">Liang Ding</a>
- * @version 1.3.1.5, Oct 20, 2018
+ * @version 1.3.1.6, Dec 2, 2018
  * @since 0.4.6
  */
 @RequestProcessor
@@ -105,11 +101,10 @@ public class BlogProcessor {
      * </ul>
      *
      * @param context the specified context
-     * @throws Exception exception
      */
-    @RequestProcessing(value = "/blog/info", method = HTTPRequestMethod.GET)
-    public void getBlogInfo(final HTTPRequestContext context) throws Exception {
-        final JSONRenderer renderer = new JSONRenderer();
+    @RequestProcessing(value = "/blog/info", method = HttpMethod.GET)
+    public void getBlogInfo(final RequestContext context) {
+        final JsonRenderer renderer = new JsonRenderer();
         context.setRenderer(renderer);
         final JSONObject jsonObject = new JSONObject();
         renderer.setJSONObject(jsonObject);
@@ -125,7 +120,13 @@ public class BlogProcessor {
         jsonObject.put("runtimeMode", Latkes.getRuntimeMode());
         jsonObject.put("runtimeDatabase", Latkes.getRuntimeDatabase());
         jsonObject.put("locale", Latkes.getLocale());
-        jsonObject.put("userName", userQueryService.getAdmin().optString(User.USER_NAME));
+        String userName = "";
+        try {
+            userName = userQueryService.getAdmin().optString(User.USER_NAME);
+        } catch (final Exception e) {
+            // ignored
+        }
+        jsonObject.put("userName", userName);
         jsonObject.put("qiniuDomain", "");
         jsonObject.put("qiniuBucket", "");
         final JSONObject qiniu = optionQueryService.getOptions(Option.CATEGORY_C_QINIU);
@@ -133,40 +134,6 @@ public class BlogProcessor {
             jsonObject.put("qiniuDomain", qiniu.optString(Option.ID_C_QINIU_DOMAIN));
             jsonObject.put("qiniuBucket", qiniu.optString(Option.ID_C_QINIU_BUCKET));
         }
-    }
-
-    /**
-     * Sync user to https://hacpai.com.
-     *
-     * @param context the specified context
-     * @throws Exception exception
-     */
-    @RequestProcessing(value = "/blog/symphony/user", method = HTTPRequestMethod.GET)
-    public void syncUser(final HTTPRequestContext context) throws Exception {
-        final JSONRenderer renderer = new JSONRenderer();
-        context.setRenderer(renderer);
-        final JSONObject jsonObject = new JSONObject();
-        renderer.setJSONObject(jsonObject);
-
-        if (Latkes.getServePath().contains("localhost") || Strings.isIPv4(Latkes.getServePath())) {
-            return;
-        }
-
-        final JSONObject preference = preferenceQueryService.getPreference();
-        if (null == preference) {
-            return; // not init yet
-        }
-
-        final JSONObject requestJSONObject = new JSONObject();
-        final JSONObject admin = userQueryService.getAdmin();
-        requestJSONObject.put(User.USER_NAME, admin.getString(User.USER_NAME));
-        requestJSONObject.put(User.USER_EMAIL, admin.getString(User.USER_EMAIL));
-        requestJSONObject.put(User.USER_PASSWORD, admin.getString(User.USER_PASSWORD));
-        requestJSONObject.put("userB3Key", preference.optString(Option.ID_C_KEY_OF_SOLO));
-        requestJSONObject.put("clientHost", Latkes.getServePath());
-
-        HttpRequest.post(Solos.B3LOG_SYMPHONY_SERVE_PATH + "/apis/user").bodyText(requestJSONObject.toString())
-                .header("User-Agent", Solos.USER_AGENT).contentTypeJson().sendAsync();
     }
 
     /**
@@ -183,26 +150,26 @@ public class BlogProcessor {
      * </pre>
      * </p>
      *
-     * @param context  the specified context
-     * @param request  the specified HTTP servlet request
-     * @param response the specified HTTP servlet response
-     * @throws Exception exception
+     * @param context the specified context
      */
-    @RequestProcessing(value = "/blog/articles-tags", method = HTTPRequestMethod.GET)
-    public void getArticlesTags(final HTTPRequestContext context, final HttpServletRequest request, final HttpServletResponse response)
-            throws Exception {
-        final String pwd = request.getParameter("pwd");
+    @RequestProcessing(value = "/blog/articles-tags", method = HttpMethod.GET)
+    public void getArticlesTags(final RequestContext context) {
+        final String pwd = context.param("pwd");
         if (StringUtils.isBlank(pwd)) {
-            response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
+            context.sendError(HttpServletResponse.SC_UNAUTHORIZED);
 
             return;
         }
 
-        final JSONObject admin = userQueryService.getAdmin();
-        if (!DigestUtils.md5Hex(pwd).equals(admin.getString(User.USER_PASSWORD))) {
-            response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
+        try {
+            final JSONObject admin = userQueryService.getAdmin();
+            if (!DigestUtils.md5Hex(pwd).equals(admin.getString(User.USER_PASSWORD))) {
+                context.sendError(HttpServletResponse.SC_UNAUTHORIZED);
 
-            return;
+                return;
+            }
+        } catch (final Exception e) {
+            // ignored
         }
 
         final JSONObject requestJSONObject = new JSONObject();
@@ -226,7 +193,7 @@ public class BlogProcessor {
         final JSONObject result = articleQueryService.getArticles(requestJSONObject);
         final JSONArray articles = result.optJSONArray(Article.ARTICLES);
 
-        final JSONRenderer renderer = new JSONRenderer();
+        final JsonRenderer renderer = new JsonRenderer();
         context.setRenderer(renderer);
         final JSONObject ret = new JSONObject();
         renderer.setJSONObject(ret);
